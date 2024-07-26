@@ -1,0 +1,158 @@
+USERS ENTITIES
+ @Data
+ @Entity
+ @Table(name = "users")
+ public class User {
+     @Id
+     @GeneratedValue(strategy = GenerationType.IDENTITY)
+     private Long id;
+
+     private String username;
+     private String password;
+
+     @ElementCollection(targetClass = Role.class, fetch = FetchType.EAGER)
+     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
+     @Enumerated(EnumType.STRING)
+     private Set<Role> roles;
+ }
+
+ // src/main/java/com/example/meetingmanagement/model/Role.java
+ package com.example.meetingmanagement.model;
+
+ public enum Role {
+     ADMIN, ORGANIZER, PARTICIPANT
+ }
+
+ // src/main/java/com/example/meetingmanagement/model/Meeting.java
+ package com.example.meetingmanagement.model;
+
+ import lombok.Data;
+
+ import javax.persistence.*;
+ import java.time.LocalDateTime;
+ import java.util.List;
+
+ @Data
+ @Entity
+ @Table(name = "meetings")
+ public class Meeting {
+     @Id
+     @GeneratedValue(strategy = GenerationType.IDENTITY)
+     private Long id;
+
+     private String title;
+     private String description;
+     private LocalDateTime startTime;
+     private LocalDateTime endTime;
+
+     @ManyToMany(fetch = FetchType.LAZY)
+     @JoinTable(
+         name = "meeting_users",
+         joinColumns = @JoinColumn(name = "meeting_id"),
+         inverseJoinColumns = @JoinColumn(name = "user_id")
+     )
+     private List<User> participants;
+ }
+
+//DTO'S
+
+@Data
+public class CreateMeetingRequest {
+    @NotEmpty
+    private String title;
+
+    private String description;
+
+    @NotNull
+    private LocalDateTime startTime;
+
+    @NotNull
+    private LocalDateTime endTime;
+
+    private List<Long> participantIds;
+}
+
+// src/main/java/com/example/meetingmanagement/dto/response/MeetingResponse.java
+package com.example.meetingmanagement.dto.response;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+public class MeetingResponse {
+    private Long id;
+    private String title;
+    private String description;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private List<UserResponse> participants;
+}
+
+// src/main/java/com/example/meetingmanagement/dto/response/UserResponse.java
+package com.example.meetingmanagement.dto.response;
+
+import lombok.Data;
+
+@Data
+public class UserResponse {
+    private Long id;
+    private String username;
+    private List<String> roles;
+}
+
+// SERVİCE AND MANAGER's
+public interface MeetingService {
+    MeetingResponse createMeeting(CreateMeetingRequest request);
+}
+
+public interface UserService {
+    UserResponse getUserById(Long id);
+    List<UserResponse> getAllUsers();
+}
+
+public class MeetingManager implements MeetingService {
+
+    @Autowired
+    private MeetingRepository meetingRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public MeetingResponse createMeeting(CreateMeetingRequest request) {
+        Meeting meeting = new Meeting();
+        meeting.setTitle(request.getTitle());
+        meeting.setDescription(request.getDescription());
+        meeting.setStartTime(request.getStartTime());
+        meeting.setEndTime(request.getEndTime());
+
+        List<User> participants = userRepository.findAllById(request.getParticipantIds());
+        meeting.setParticipants(participants);
+
+        Meeting savedMeeting = meetingRepository.save(meeting);
+
+        return mapToResponse(savedMeeting);
+    }
+
+private MeetingResponse mapToResponse(Meeting meeting) {
+        MeetingResponse response = new MeetingResponse();
+        response.setId(meeting.getId());
+        response.setTitle(meeting.getTitle());
+        response.setDescription(meeting.getDescription());
+        response.setStartTime(meeting.getStartTime());
+        response.setEndTime(meeting.getEndTime());
+        response.setParticipants(meeting.getParticipants().stream()
+            .map(user -> {
+                UserResponse userResponse = new UserResponse();
+                userResponse.setId(user.getId());
+                userResponse.setUsername(user.getUsername());
+                userResponse.setRoles(user.getRoles().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toList()));
+                return userResponse;
+            }).collect(Collectors.toList()));
+        return response;
+    }
+}

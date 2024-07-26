@@ -1,0 +1,12 @@
+entityler tanımlandıktan sonra.
+
+authentication için-->
+
+Config kodlanacak
+jwtService ardından JwtManager.
+
+refreshTokenService (entity)
+
+auth Response kodlanmalı.
+loginRequest de olmalı login islemi için
+auth--> kısmına yönelebilirim
